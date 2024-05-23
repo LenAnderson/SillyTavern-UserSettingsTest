@@ -1,15 +1,28 @@
-#user-settings-v2-block {
-    height: calc(100svh - var(--topBarBlockSize));
-    max-height: unset;
+[data-user-settings="user-settings-v2-block"] {
+    max-height: calc(100svh - var(--topBarBlockSize));
     overflow: hidden;
-    &.openDrawer {
-        display: block;
-    }
+    container-type: inline-size;
     > .wrapper {
         display: flex;
         flex-direction: column;
-        height: 100%;
+        height: calc(100svh - var(--topBarBlockSize) - 12px);
         overflow: hidden;
+        .headerWrapper {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            .head {
+                font-size: 1.5em;
+            }
+            .actions {
+                display: flex;
+                flex-direction: row;
+                gap: 1em;
+                .action {
+                    white-space: nowrap;
+                }
+            }
+        }
         .searchWrapper {
             flex: 0 0 auto;
             display: flex;
@@ -18,9 +31,11 @@
             }
         }
         .settingsWrapper {
+            flex: 1 1 auto;
             display: flex;
             overflow: hidden;
             gap: 1em;
+            position: relative;
             .categoriesWrapper {
                 flex: 0 0 auto;
                 overflow: auto;

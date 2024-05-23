@@ -1,3 +1,14 @@
+import { delay } from "../../../utils.js";
+
+/**
+ * @typedef {object} UserSettingsItem
+ * @prop {string} name
+ * @prop {(HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement|HTMLElement)[]} inp
+ * @prop {string} description
+ * @prop {string} type
+ * @prop {HTMLElement[]} buttons
+ * @prop {HTMLElement[]} icons
+ */
 export class UserSettings {
     // controls:
     //  - buttons (one or more)
@@ -14,10 +25,18 @@ export class UserSettings {
     //  - desktop-only
     //  - action (!) -> should probably just be a button
 
+    tree;
+
     constructor() {
         this.init();
-        window.addEventListener('keydown', (evt)=>{
-            if (!document.querySelector('#user-settings-v2-block').classList.contains('openDrawer')) return;
+        window.addEventListener('keydown', async(evt)=>{
+            if (evt.ctrlKey && evt.key == ',') {
+                document.querySelector('#user-settings-button .drawer-icon').click();
+                await delay(500);
+                this.updateCategory();
+                document.querySelector('#user-settings-v2-search').select();
+            }
+            if (!document.querySelector('[data-user-settings="user-settings-v2-block"]').classList.contains('openDrawer')) return;
             if (evt.ctrlKey && evt.key == 'f') {
                 evt.preventDefault();
                 evt.stopPropagation();
@@ -26,7 +45,7 @@ export class UserSettings {
         });
         document.querySelector('#user-settings-v2-search').addEventListener('input', ()=>{
             const query = document.querySelector('#user-settings-v2-search').value.trim().toLowerCase();
-            const items = [...document.querySelectorAll('#user-settings-v2-block .contentWrapper .item')];
+            const items = [...document.querySelectorAll('[data-user-settings="user-settings-v2-block"] .contentWrapper .item')];
             for (const item of items) {
                 if (item.textContent.toLowerCase().includes(query)) {
                     item.classList.remove('hidden');
@@ -34,8 +53,8 @@ export class UserSettings {
                     item.classList.add('hidden');
                 }
             }
-            const cats = [...document.querySelectorAll('#user-settings-v2-block .contentWrapper .category:has(.item:not(.hidden)) .head')].map(it=>it.textContent);
-            const heads = [...document.querySelectorAll('#user-settings-v2-block .categoriesWrapper .category .head')];
+            const cats = [...document.querySelectorAll('[data-user-settings="user-settings-v2-block"] .contentWrapper .category:has(.item:not(.hidden)) .head')].map(it=>it.textContent);
+            const heads = [...document.querySelectorAll('[data-user-settings="user-settings-v2-block"] .categoriesWrapper .category .head')];
             for (const head of heads) {
                 if (cats.includes(head.textContent)) {
                     head.classList.remove('hidden');
@@ -45,18 +64,18 @@ export class UserSettings {
             }
             this.updateCategory();
         });
-        document.querySelector('#user-settings-v2-block .contentWrapper').addEventListener('scroll', ()=>{
+        document.querySelector('[data-user-settings="user-settings-v2-block"] .contentWrapper').addEventListener('scroll', ()=>{
             this.updateCategory();
         });
     }
 
     updateCategory() {
-        const items = [...document.querySelectorAll('#user-settings-v2-block .contentWrapper .item')];
+        const items = [...document.querySelectorAll('[data-user-settings="user-settings-v2-block"] .contentWrapper .item')];
         for (const item of items) {
             const rect = item.getBoundingClientRect();
             if (rect.top > 0) {
                 const cat = item.closest('.category').querySelector('.head').textContent;
-                const heads = [...document.querySelectorAll('#user-settings-v2-block .categoriesWrapper .head')];
+                const heads = [...document.querySelectorAll('[data-user-settings="user-settings-v2-block"] .categoriesWrapper .head')];
                 for (const head of heads) {
                     if (head.textContent == cat) {
                         let cur = head;
@@ -83,6 +102,7 @@ export class UserSettings {
             'stscript_autocomplete_font_scale': 'Font Scale',
             'debug_menu': 'Debug Menu',
             'reload_chat': 'Reload Chat',
+            'ui_mode_select': 'UI Mode',
         };
         const descMap = {
             'themes': 'Select a UI theme',
@@ -100,9 +120,31 @@ export class UserSettings {
             'bot-mes-blur-tint-color-picker': 'Background color for AI written chat messages',
             'stscript_autocomplete_autoHide': 'Automatically hide autocomplete details when typing after completion',
             'debug_menu': 'Open a menu with debugging tools',
+            'account_button': 'Manage your account',
+            'admin_button': 'Administer all accounts and create new accounts',
+            'logout_button': 'Logout of your account',
+            'ui_mode_select': '"Simple" hides some settings from you',
+            'ui_language_select': 'Select a UI translation',
+            // 'example_messages_behavior': '',
+            // 'send_on_enter': '',
+            // 'continue_on_send': '',
+            // 'auto-load-chat-checkbox': '',
+            // 'auto_scroll_chat_to_bottom': '',
+            // 'confirm_message_delete': '',
+            // 'auto_fix_generated_markdown': '',
+            // 'allow_name2_display': '',
+            // 'allow_name1_display': '',
+            // 'console_log_prompts': '',
         };
         const catMap = {
             'Custom CSS > ': 'UI Theme',
+        };
+        const catCrumbsMap = {
+            'account_button': 'User Management',
+            'admin_button': 'User Management',
+            'logout_button': 'User Management',
+            'ui_mode_select': 'Miscellaneous',
+            'ui_language_select': 'Miscellaneous',
         };
         const btnMap = {
             'themes': [
@@ -121,6 +163,7 @@ export class UserSettings {
             ],
             'customCSS': [
                 '#CustomCSS-block .editor_maximize',
+                '.csss--trigger',
             ],
         };
         const skipList = [
@@ -128,23 +171,41 @@ export class UserSettings {
             'ui_preset_import_file',
         ];
         const settingsRoot = document.querySelector('#user-settings-block-content');
+        const toOldBtn = document.createElement('div'); {
+            toOldBtn.classList.add('menu_button');
+            toOldBtn.textContent = 'Old Settings';
+            toOldBtn.style.whiteSpace = 'nowrap';
+            toOldBtn.addEventListener('click', ()=>{
+                const wrapper = document.querySelector('#user-settings-v2-wrapper');
+                wrapper.classList.add('hidden');
+                [...wrapper.parentElement.children].filter(it=>it != wrapper).forEach(it=>it.style.display = '');
+            });
+        }
         const tree = {};
         let prevSetting;
-        for (const inp of [...settingsRoot.querySelectorAll('select, input, textarea, toolcool-color-picker, #reload_chat, #debug_menu')]) {
+        const inps = [
+            ...settingsRoot.querySelectorAll('select, input, textarea, toolcool-color-picker, #reload_chat, #debug_menu'),
+            ...document.querySelectorAll('#account_button, #admin_button, #logout_button, #ui_mode_select, #ui_language_select'),
+        ];
+        for (const inp of inps) {
             if (skipList.includes(inp.id)) continue;
-            let header = inp.closest('[name="UserSettingsFirstColumn"], [name="UserSettingsSecondColumn"], [name="UserSettingsThirdColumn"]').querySelectorAll(`h4, #${inp.id}`);
-            let prev;
             let prefix = '';
-            for (const h of header) {
-                if (h == inp) break;
-                prev = h;
-            }
-            if (prev) {
-                prefix = `${prefix}${prev.textContent.trim()} > `;
-            }
-            const drawer = inp.closest('.inline-drawer')?.querySelector('.inline-drawer-header')?.firstElementChild?.textContent?.replace(/^[\s\n]*([^\n]+).*$/s, '$1').trim();
-            if (drawer) {
-                prefix = `${prefix}${drawer} > `;
+            if (catCrumbsMap[inp.id]) {
+                prefix = catCrumbsMap[inp.id];
+            } else {
+                let header = inp.closest('[name="UserSettingsFirstColumn"], [name="UserSettingsSecondColumn"], [name="UserSettingsThirdColumn"]').querySelectorAll(`h4, #${inp.id}`);
+                let prev;
+                for (const h of header) {
+                    if (h == inp) break;
+                    prev = h;
+                }
+                if (prev) {
+                    prefix = `${prefix}${prev.textContent.trim()} > `;
+                }
+                const drawer = inp.closest('.inline-drawer')?.querySelector('.inline-drawer-header')?.firstElementChild?.textContent?.replace(/^[\s\n]*([^\n]+).*$/s, '$1').trim();
+                if (drawer) {
+                    prefix = `${prefix}${drawer} > `;
+                }
             }
             const name = (
                 null
@@ -167,17 +228,21 @@ export class UserSettings {
                 if (!cur[c]) cur[c] = { name:c, settings:[] };
                 cur = cur[c];
             }
-            const description = (
+            let description = (
                 null
                 || descMap[inp.id]
                 || inp.getAttribute('title')
                 || inp.getAttribute('data-sttt--title')
+                || inp.getAttribute('placeholder')
                 || inp.closest('[title], [data-sttt--title]')?.getAttribute('title')
                 || inp.closest('[title], [data-sttt--title]')?.getAttribute('data-sttt--title')
                 || inp.closest(':has([title], [data-sttt--title])').querySelector('[title], [data-sttt--title]')?.getAttribute('title')
                 || inp.closest(':has([title], [data-sttt--title])').querySelector('[title], [data-sttt--title]')?.getAttribute('data-sttt--title')
                 || '...'
             );
+            if (description == 'The number of chat history messages to load before pagination.' && inp.id != 'chat_truncation' && inp.id != 'chat_truncation_counter') {
+                description = '...';
+            }
             const buttons = (btnMap[inp.id] ?? []).map(it=>document.querySelector(`${it}`));
             buttons.forEach(it=>{
                 it.replaceWith(it.cloneNode(true));
@@ -222,10 +287,24 @@ export class UserSettings {
                 inp.replaceWith(clone);
             }
         }
+        tree['Settings'] = {
+            name: 'Settings',
+            settings: [
+                {
+                    name: 'Show old user settings',
+                    inp: [toOldBtn],
+                    description: 'Show old user settings (not functional)',
+                    type:'button',
+                    buttons: [],
+                    icons: [],
+                },
+            ],
+        };
         console.log('SETTINGS', tree);
+        this.tree = tree;
 
-        const catRoot = document.querySelector('#user-settings-v2-block .categoriesWrapper');
-        const contentRoot = document.querySelector('#user-settings-v2-block .contentWrapper');
+        const catRoot = document.querySelector('[data-user-settings="user-settings-v2-block"] .categoriesWrapper');
+        const contentRoot = document.querySelector('[data-user-settings="user-settings-v2-block"] .contentWrapper');
         const render = (cat, cont, cur, level = 0)=>{
             for (const key of Object.keys(cur)) {
                 if (['name', 'settings'].includes(key)) continue;
