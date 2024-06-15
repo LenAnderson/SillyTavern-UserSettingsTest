@@ -243,7 +243,7 @@ export class UserSettings {
             if (description == 'The number of chat history messages to load before pagination.' && inp.id != 'chat_truncation' && inp.id != 'chat_truncation_counter') {
                 description = '...';
             }
-            const buttons = (btnMap[inp.id] ?? []).map(it=>document.querySelector(`${it}`));
+            const buttons = (btnMap[inp.id] ?? []).map(it=>document.querySelector(`${it}`)).filter(it=>it);
             buttons.forEach(it=>{
                 it.replaceWith(it.cloneNode(true));
                 it.classList.add('menu_button');
